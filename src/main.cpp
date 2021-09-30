@@ -11,16 +11,18 @@ const auto PPM_COUNT = 8;
 PPMReader ppm(PPM_PIN, PPM_COUNT);
 
 const auto SPEED_CH = 3;
-const auto STEER_CH = 1;
+const auto STEER_CH = 4;
 // ch3 2000 - forward
 // ch3 1000 - back
 // ch1 2000 - right
 // ch1 1000 - left
 
+const uint8_t MAX_PWM_SPEED = 255;
+
 uint8_t conv(int16_t v) {
-  if (v >= 500) return 255;
+  if (v >= 500) return MAX_PWM_SPEED;
   else if (v <= 0) return 0;
-  else return v / 2;
+  else return v / 500. * MAX_PWM_SPEED;
 }
 
 void drive(uint16_t speed_pwm, uint16_t steer_pwm) {
