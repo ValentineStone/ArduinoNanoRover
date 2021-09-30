@@ -1,93 +1,62 @@
 #include <Arduino.h>
-#include <IRremote.h>
+#include <PPMReader.h>
 
-const auto MOTOR_A_FW  = A0;
-const auto MOTOR_A_BW  = A1;
-const auto MOTOR_B_FW  = A2;
-const auto MOTOR_B_BW  = A3;
-const auto RECV_PIN = DD5;
+const auto MOTOR_A_FW  = 11; // A0;
+const auto MOTOR_A_BW  = 10; // A1;
+const auto MOTOR_B_FW  =  9; // A2;
+const auto MOTOR_B_BW  =  6; // A3;
 
-const auto UP_CMD = 24;
-const auto RIGHT_CMD = 90;
-const auto LEFT_CMD = 8;
-const auto DOWN_CMD = 82;
-const auto BREAK_CMD = 28;
+const auto PPM_PIN  = 3;
+const auto PPM_COUNT = 8;
+PPMReader ppm(PPM_PIN, PPM_COUNT);
 
-const auto speed = 128;
+const auto SPEED_CH = 3;
+const auto STEER_CH = 1;
+// ch3 2000 - forward
+// ch3 1000 - back
+// ch1 2000 - right
+// ch1 1000 - left
 
-IRrecv reciever(RECV_PIN);
-
-void setup() {
-  /*
-  pinMode(MOTOR_A_FW, OUTPUT);
-  pinMode(MOTOR_A_BW, OUTPUT);
-  pinMode(MOTOR_B_FW, OUTPUT);
-  pinMode(MOTOR_B_BW, OUTPUT);
-  analogWrite(MOTOR_A_FW, speed);
-  analogWrite(MOTOR_A_BW, 0);
-  analogWrite(MOTOR_B_FW, speed);
-  analogWrite(MOTOR_B_BW, 0);
-  delay(10000);
-  analogWrite(MOTOR_A_FW, 0);
-  analogWrite(MOTOR_B_FW, 0);
-  */
-  Serial.begin(9600);
-  reciever.enableIRIn();
-  Serial.println("Hello, world!");
-  
+uint8_t conv(int16_t v) {
+  if (v >= 500) return 255;
+  else if (v <= 0) return 0;
+  else return v / 2;
 }
 
-uint64_t last_command = 0;
+void drive(uint16_t speed_pwm, uint16_t steer_pwm) {
+  if (
+    speed_pwm < 1000 ||
+    speed_pwm > 2000 ||
+    steer_pwm < 1000 ||
+    steer_pwm > 2000
+  ) return;
+
+  int16_t steer = steer_pwm - 1500;
+  int16_t speed = speed_pwm - 1500;
+
+  int16_t speed_r = speed - steer;
+  int16_t speed_l = speed + steer;
+  
+  analogWrite(MOTOR_A_FW, conv(+speed_r));
+  analogWrite(MOTOR_B_FW, conv(+speed_l));
+  analogWrite(MOTOR_A_BW, conv(-speed_r));
+  analogWrite(MOTOR_B_BW, conv(-speed_l));
+}
+
+void setup() {
+  pinMode(MOTOR_A_BW, OUTPUT);
+  pinMode(MOTOR_B_FW, OUTPUT);
+  pinMode(MOTOR_A_BW, OUTPUT);
+  pinMode(MOTOR_B_BW, OUTPUT);
+  analogWrite(MOTOR_A_FW, 0);
+  analogWrite(MOTOR_B_FW, 0);
+  analogWrite(MOTOR_A_BW, 0);
+  analogWrite(MOTOR_B_BW, 0);
+}
+
 void loop() {
-  if (reciever.decode()) {
-    switch (reciever.decodedIRData.command) {
-      case UP_CMD: {
-        analogWrite(MOTOR_A_FW, speed);
-        analogWrite(MOTOR_A_BW, 0);
-        analogWrite(MOTOR_B_FW, speed);
-        analogWrite(MOTOR_B_BW, 0);
-        last_command = millis();
-        break;
-      }
-      case DOWN_CMD: {
-        analogWrite(MOTOR_A_FW, 0);
-        analogWrite(MOTOR_A_BW, speed);
-        analogWrite(MOTOR_B_FW, 0);
-        analogWrite(MOTOR_B_BW, speed);
-        last_command = millis();
-        break;
-      }
-      case RIGHT_CMD: {
-        analogWrite(MOTOR_A_FW, 0);
-        analogWrite(MOTOR_A_BW, speed);
-        analogWrite(MOTOR_B_FW, speed);
-        analogWrite(MOTOR_B_BW, 0);
-        last_command = millis();
-        break;
-      }
-      case LEFT_CMD: {
-        analogWrite(MOTOR_A_FW, speed);
-        analogWrite(MOTOR_A_BW, 0);
-        analogWrite(MOTOR_B_FW, 0);
-        analogWrite(MOTOR_B_BW, speed);
-        last_command = millis();
-        break;
-      }
-      case BREAK_CMD: {
-        analogWrite(MOTOR_A_FW, 0);
-        analogWrite(MOTOR_A_BW, 0);
-        analogWrite(MOTOR_B_FW, 0);
-        analogWrite(MOTOR_B_BW, 0);
-        last_command = millis();
-        break;
-      }
-    }
-    reciever.resume();
-  }
-  if (millis() - last_command > 1000) {
-    analogWrite(MOTOR_A_FW, 0);
-    analogWrite(MOTOR_A_BW, 0);
-    analogWrite(MOTOR_B_FW, 0);
-    analogWrite(MOTOR_B_BW, 0);
-  }
+  drive(
+    ppm.latestValidChannelValue(SPEED_CH, 1500), 
+    ppm.latestValidChannelValue(STEER_CH, 1500)
+  );
 }
